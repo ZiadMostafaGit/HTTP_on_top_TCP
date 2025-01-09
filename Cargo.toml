@@ -1,0 +1,10 @@
+[package]
+name = "HttpOverTCP"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+if-addrs = "0.6"
+winapi = { version = "0.3.9", features = ["winsock2"] }
+chrono = "0.4"
+
