@@ -1,3 +1,6 @@
+use std::fs;
+use std::path::{Path, PathBuf};
+
 use if_addrs::get_if_addrs;
 use std::io::Read;
 use std::net::{TcpListener, TcpStream};
@@ -22,20 +25,20 @@ fn main() -> std::io::Result<()> {
 }
 
 fn handle_request(stream: &mut TcpStream) {
-    let get = "Get";
-    let post = "Post";
+    let _get = "GET";
+    let _post = "POST";
 
-    let (method, is_http) = is_http(&stream);
+    let (method, url, is_http) = is_http(stream);
 
     if is_http == false {
-        println!("the server said its not http request so it will get droped ");
+        println!("the server said its not http request so it will _get droped ");
     } else {
         match method {
-            get => {
-                handle_get(stream);
+            _get => {
+                handle_get(stream, url);
             }
-            post => {
-                handle_post(stream);
+            _post => {
+                handle_post(stream, url);
             }
             _ => {
                 println!("Unsupported HTTP method: {}", method);
@@ -44,7 +47,7 @@ fn handle_request(stream: &mut TcpStream) {
     }
 }
 
-fn is_http(stream: &TcpStream) -> (String, bool) {
+fn is_http(stream: &mut TcpStream) -> (String, String, bool) {
     let mut buffer = [0; 512]; // Create a buffer to store the incoming data
     let mut request = String::new();
 
@@ -54,7 +57,7 @@ fn is_http(stream: &TcpStream) -> (String, bool) {
             request.push_str(&String::from_utf8_lossy(&buffer[..size]));
         }
         Err(_) => {
-            return ("".to_string(), false); // Return empty if there's an error
+            return ("".to_string(), "".to_string(), false);
         }
     }
 
@@ -62,13 +65,13 @@ fn is_http(stream: &TcpStream) -> (String, bool) {
     let mut lines = request.lines();
     let first_line = match lines.next() {
         Some(line) => line,
-        None => return ("".to_string(), false), // If no first line, it's not HTTP
+        None => return ("".to_string(), "".to_string(), false),
     };
 
     // Step 2: Check if the first line matches the expected HTTP format
     let parts: Vec<&str> = first_line.split_whitespace().collect();
     if parts.len() < 3 {
-        return ("".to_string(), false); // Invalid first line (method, URL, version expected)
+        return ("".to_string(), "".to_string(), false);
     }
 
     let method = parts[0].to_string();
@@ -77,26 +80,45 @@ fn is_http(stream: &TcpStream) -> (String, bool) {
 
     // Step 3: Check if it's a valid HTTP version (e.g., HTTP/1.1)
     if !version.starts_with("HTTP/") {
-        return ("".to_string(), false); // Not an HTTP request if version is incorrect
+        return ("".to_string(), "".to_string(), false);
     }
+    let mut headers_finished = false;
+    let mut body = String::new();
 
-    // Step 4: Skip headers (we can ignore them for now)
-    // Continue until we find an empty line (headers are separated from body by an empty line)
     for line in lines {
-        if line.is_empty() {
-            break; // Found the end of the headers section
+        if headers_finished {
+            // After the headers section, accumulate the body
+            body.push_str(line);
+            body.push('\n'); // Preserve line breaks
+        } else if line.is_empty() {
+            // An empty line indicates the end of the headers section
+            headers_finished = true;
         }
     }
 
-    // Step 5: If there's any data after the headers, it's the body
-    let body: String = lines.collect::<Vec<&str>>().join("\n");
-    (method, true)
+    (method, url, true)
 }
 
-fn handle_get(stream: &mut TcpStream) {
-    //send the index.html to clint
+fn handle_get(stream: &mut TcpStream, url: String) {
+    let base_bath = "~/git/HTTP_on_top_TCP/src/";
+    let new_url = url.as_str();
+    let path_for_resource = map_url_to_file(&base_bath, &new_url);
 }
-fn handle_post(stream: &mut TcpStream) {
+fn handle_post(stream: &mut TcpStream, url: String) {
     //handle the data clint should be sent it and maybe return to the html to show that the form
     //submeted sucssisfully
+}
+
+/// Maps a URL to a file path on the server
+fn map_url_to_file(base_dir: &str, url_path: &str) -> Option<PathBuf> {
+    // Sanitize the path to avoid directory traversal attacks
+    let safe_path = url_path.trim_start_matches('/');
+    let full_path = Path::new(base_dir).join(safe_path);
+
+    // Check if the file exists and is a file (not a directory)
+    if full_path.is_file() {
+        Some(full_path)
+    } else {
+        None
+    }
 }
