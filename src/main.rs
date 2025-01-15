@@ -1,5 +1,36 @@
+use chrono::format;
+use rusqlite::{params, Connection, Result};
+use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};
+
+#[derive(Deserialize)]
+struct user_info {
+    name: String,
+    email: String,
+}
+#[derive(Serialize)]
+struct Response {
+    message: String,
+}
+impl user_info {
+    fn insert_user_info(&self) -> Result<()> {
+        let conn = Connection::open("user_info.db")?;
+
+        let mut prep = conn.prepare("SELECT COUNT(*) FROM users WHERE email =?1")?;
+        let count: i32 = prep.query_row(params![&self.email], |row| row.get(0))?;
+        if count == 0 {
+            conn.execute(
+                "INSERT INTO users (name, email) VALUES (?1, ?2)",
+                params![&self.name, &self.email],
+            )?;
+
+            Ok(())
+        } else {
+            return Err(rusqlite::Error::QueryReturnedNoRows); // Or a custom error
+        }
+    }
+}
 
 use if_addrs::get_if_addrs;
 use std::io::{Read, Write};
@@ -28,6 +59,7 @@ fn handle_request(stream: &mut TcpStream) {
     let get = String::from("GET");
     let post = String::from("POST");
 
+    let store_user_data_post_request = "send_form";
     let (method, url, body, is_http) = is_http(stream);
 
     if is_http == false {
@@ -38,7 +70,9 @@ fn handle_request(stream: &mut TcpStream) {
                 handle_get(stream, url);
             }
             post => {
-                handle_post(stream, url, body);
+                if url == store_user_data_post_request {
+                    handle_post_for_store_user_data(stream, url, body);
+                }
             }
         }
     }
@@ -91,40 +125,136 @@ fn is_http(stream: &mut TcpStream) -> (String, String, String, bool) {
     (method, url, body, true)
 }
 
-fn handle_get(stream: &mut TcpStream, url: String) {
-    let base_bath = "/home/ziad/git/HTTP_on_top_TCP/src/";
-    let new_url = url.as_str();
-    let path_for_resource = map_url_to_file(&base_bath, &new_url);
+// fn handle_get(stream: &mut TcpStream, url: String) {
+//     let base_bath = "/home/ziad/git/HTTP_on_top_TCP/src/";
+//     let new_url = url.as_str();
+//     let path_for_resource = map_url_to_file(&base_bath, &new_url);
+//
+//     if path_for_resource.is_none() {
+//         let response = "HTTP/1.1 200 Ok\r\nContent-Type: {}\r\nContent-Length:0\r\n\r\n";
+//         stream.write_all(response.as_bytes()).unwrap();
+//     } else {
+//         let path = path_for_resource.unwrap();
+//         let content = fs::read_to_string(&path).unwrap();
+//         let content_type = if path.ends_with(".html") {
+//             "text/html"
+//         } else if path.ends_with(".css") {
+//             "text/css"
+//         } else if path.ends_with(".js") {
+//             "application/javascript"
+//         } else if path.ends_with(".png") {
+//             "image/png"
+//         } else if path.ends_with(".jpg") || path.ends_with("jpeg") {
+//             "image/jpg"
+//         } else {
+//             "text/plain"
+//         };
+//         let response = format!(
+//             "HTTP/1.1 200 OK\r\nContent-Type: {} \r\nContent-Length: {} \r\n\r\n{}",
+//             content_type,
+//             content.len(),
+//             content
+//         );
+//         stream.write_all(response.as_bytes()).unwrap();
+//     }
+// }
 
-    if path_for_resource.is_none() {
-        let response = "HTTP/1.1 200 Ok\r\nContent-Type: {}\r\nContent-Length:0\r\n\r\n";
-        stream.write_all(response.as_bytes()).unwrap();
-    } else {
-        let path = path_for_resource.unwrap();
-        let content = fs::read_to_string(&path).unwrap();
-        let content_type = if path.ends_with(".html") {
-            "text/html"
-        } else if path.ends_with(".css") {
-            "text/css"
-        } else if path.ends_with(".js") {
-            "application/javascript"
-        } else if path.ends_with(".png") {
-            "image/png"
-        } else if path.ends_with(".jpg") || path.ends_with("jpeg") {
-            "image/jpg"
+fn handle_get(stream: &mut TcpStream, url: String) {
+    let base_path = "/home/ziad/git/HTTP_on_top_TCP/src/";
+    let new_url = url.as_str();
+    let path_for_resource = map_url_to_file(&base_path, &new_url);
+
+    if let Some(path) = path_for_resource {
+        if let Ok(content) = fs::read(&path) {
+            let content_type = if path.ends_with(".html") {
+                "text/html"
+            } else if path.ends_with(".css") {
+                "text/css"
+            } else if path.ends_with(".js") {
+                "application/javascript"
+            } else if path.ends_with(".png") {
+                "image/png"
+            } else if path.ends_with(".jpg") || path.ends_with(".jpeg") {
+                "image/jpeg"
+            } else {
+                "text/plain"
+            };
+
+            println!("{}", content_type);
+            let response = format!(
+                "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: {}\r\n\r\n",
+                content.len()
+            );
+            stream.write_all(response.as_bytes()).unwrap();
+            stream.write_all(&content).unwrap();
         } else {
-            "text/plain"
-        };
-        let response = format!(
-            "HTTP/1.1 200 OK\r\nContent-Type: {} \r\nContent-Length: {} \r\n\r\n{}",
-            content_type,
-            content.len(),
-            content
-        );
+            let response = "HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\n\r\n";
+            stream.write_all(response.as_bytes()).unwrap();
+        }
+    } else {
+        let response = "HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\n\r\n";
         stream.write_all(response.as_bytes()).unwrap();
     }
 }
-fn handle_post(stream: &mut TcpStream, url: String, body: String) {}
+
+fn handle_post_for_store_user_data(stream: &mut TcpStream, url: String, body: String) {
+    let form_data: Result<user_info, serde_json::Error> = serde_json::from_str(&body);
+
+    match form_data {
+        Ok(data) => {
+            println!("Data received successfully, converted to JSON and stored in struct for ease of use");
+
+            match data.insert_user_info() {
+                Ok(_) => {
+                    // Create a response message
+                    let response = Response {
+                        message: "Your data is saved successfully".to_string(),
+                    };
+
+                    // Serialize the response to JSON
+                    let json_message =
+                        serde_json::to_string(&response).expect("cannot Serialize the response");
+
+                    stream
+                        .write_all(
+                            format!(
+                                "HTTP1.1 200 OK\r\nContent-Length: {}
+                        \r\nContent-Type: application/json\r\n\r\n{}",
+                                json_message.len(),
+                                json_message
+                            )
+                            .as_bytes(),
+                        )
+                        .expect("error");
+                    // Send the JSON response to the client or log it
+                }
+                Err(e) => {
+                    let response = Response {
+                        message: "The email is already there try new email ".to_string(),
+                    };
+
+                    let json_message =
+                        serde_json::to_string(&response).expect("cannot Serialize the response");
+
+                    stream
+                        .write_all(
+                            format!(
+                                "HTTP1.1 200 OK\r\nContent-Length: {}
+                        \r\nContent-Type: application/json\r\n\r\n{}",
+                                json_message.len(),
+                                json_message
+                            )
+                            .as_bytes(),
+                        )
+                        .expect("error");
+                }
+            }
+        }
+        Err(data) => {
+            println!("data received but not correctly and dont match the format should be so it will be droped");
+        }
+    }
+}
 
 fn map_url_to_file(base_dir: &str, url_path: &str) -> Option<PathBuf> {
     let mut safe_path = url_path.trim_start_matches('/');
