@@ -59,20 +59,20 @@ fn handle_request(stream: &mut TcpStream) {
     let get = String::from("GET");
     let post = String::from("POST");
 
-    let store_user_data_post_request = "send_form";
+    let store_user_data_post_request = "/send_form";
     let (method, url, body, is_http) = is_http(stream);
+    println!("{}", method);
+    println!("{}", body);
+    println!("{}", url);
 
     if is_http == false {
         println!("the server said its not http request so it will get droped ");
     } else {
-        match method {
-            get => {
-                handle_get(stream, url);
-            }
-            post => {
-                if url == store_user_data_post_request {
-                    handle_post_for_store_user_data(stream, url, body);
-                }
+        if method == get {
+            handle_get(stream, url);
+        } else if method == post {
+            if url == store_user_data_post_request.to_string() {
+                handle_post_for_store_user_data(stream, url, body);
             }
         }
     }
@@ -124,65 +124,23 @@ fn is_http(stream: &mut TcpStream) -> (String, String, String, bool) {
     }
     (method, url, body, true)
 }
-
-// fn handle_get(stream: &mut TcpStream, url: String) {
-//     let base_bath = "/home/ziad/git/HTTP_on_top_TCP/src/";
-//     let new_url = url.as_str();
-//     let path_for_resource = map_url_to_file(&base_bath, &new_url);
-//
-//     if path_for_resource.is_none() {
-//         let response = "HTTP/1.1 200 Ok\r\nContent-Type: {}\r\nContent-Length:0\r\n\r\n";
-//         stream.write_all(response.as_bytes()).unwrap();
-//     } else {
-//         let path = path_for_resource.unwrap();
-//         let content = fs::read_to_string(&path).unwrap();
-//         let content_type = if path.ends_with(".html") {
-//             "text/html"
-//         } else if path.ends_with(".css") {
-//             "text/css"
-//         } else if path.ends_with(".js") {
-//             "application/javascript"
-//         } else if path.ends_with(".png") {
-//             "image/png"
-//         } else if path.ends_with(".jpg") || path.ends_with("jpeg") {
-//             "image/jpg"
-//         } else {
-//             "text/plain"
-//         };
-//         let response = format!(
-//             "HTTP/1.1 200 OK\r\nContent-Type: {} \r\nContent-Length: {} \r\n\r\n{}",
-//             content_type,
-//             content.len(),
-//             content
-//         );
-//         stream.write_all(response.as_bytes()).unwrap();
-//     }
-// }
-
 fn handle_get(stream: &mut TcpStream, url: String) {
     let base_path = "/home/ziad/git/HTTP_on_top_TCP/src/";
     let new_url = url.as_str();
     let path_for_resource = map_url_to_file(&base_path, &new_url);
-
     if let Some(path) = path_for_resource {
         if let Ok(content) = fs::read(&path) {
-            let content_type = if path.ends_with(".html") {
-                "text/html"
-            } else if path.ends_with(".css") {
-                "text/css"
-            } else if path.ends_with(".js") {
-                "application/javascript"
-            } else if path.ends_with(".png") {
-                "image/png"
-            } else if path.ends_with(".jpg") || path.ends_with(".jpeg") {
-                "image/jpeg"
-            } else {
-                "text/plain"
+            let content_type = match path.extension().and_then(|ext| ext.to_str()) {
+                Some("html") => "text/html",
+                Some("css") => "text/css",
+                Some("js") => "application/javascript",
+                Some("png") => "image/png",
+                Some("jpg") | Some("jpeg") => "image/jpeg",
+                _ => "text/plain",
             };
-
-            println!("{}", content_type);
             let response = format!(
-                "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: {}\r\n\r\n",
+                "HTTP/1.1 200 OK\r\nContent-Type: {}\r\nContent-Length: {}\r\n\r\n",
+                content_type,
                 content.len()
             );
             stream.write_all(response.as_bytes()).unwrap();
@@ -219,7 +177,7 @@ fn handle_post_for_store_user_data(stream: &mut TcpStream, url: String, body: St
                         .write_all(
                             format!(
                                 "HTTP1.1 200 OK\r\nContent-Length: {}
-                        \r\nContent-Type: application/json\r\n\r\n{}",
+                         \r\nContent-Type: application/json\r\n\r\n{}",
                                 json_message.len(),
                                 json_message
                             )
@@ -240,7 +198,7 @@ fn handle_post_for_store_user_data(stream: &mut TcpStream, url: String, body: St
                         .write_all(
                             format!(
                                 "HTTP1.1 200 OK\r\nContent-Length: {}
-                        \r\nContent-Type: application/json\r\n\r\n{}",
+                         \r\nContent-Type: application/json\r\n\r\n{}",
                                 json_message.len(),
                                 json_message
                             )

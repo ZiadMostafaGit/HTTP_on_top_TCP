@@ -5,6 +5,7 @@ document.getElementById("myForm").addEventListener("submit", function(e) {
   const email = document.getElementById("email").value;
 
   // Send data to the server via POST
+
   fetch("/send_form", {
     method : "POST",
     headers : {
