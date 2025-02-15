@@ -123,6 +123,10 @@ fn is_http(stream: &mut TcpStream) -> (String, String, String, bool, bool) {
         None => return ("".to_string(), "".to_string(), "".to_string(), false, false),
     };
 
+    for line in lines.clone() {
+        println!("{:?}", line);
+    }
+
     let parts: Vec<&str> = first_line.split_whitespace().collect();
     if parts.len() < 3 {
         return ("".to_string(), "".to_string(), "".to_string(), false, false);
