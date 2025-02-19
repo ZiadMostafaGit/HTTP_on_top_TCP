@@ -1,4 +1,3 @@
-use chrono::format;
 use rusqlite::{params, Connection, Result};
 use serde::{Deserialize, Serialize};
 use std::fs;
@@ -32,7 +31,6 @@ impl user_info {
     }
 }
 
-use if_addrs::get_if_addrs;
 use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
 fn main() -> std::io::Result<()> {
